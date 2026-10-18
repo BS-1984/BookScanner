@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Büchersammlung</title>
+  <meta name="description" content="Bücher per Barcode erfassen, durchsuchen und beim Einkauf abgleichen.">
+  <meta name="theme-color" content="#1f3a5f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 id="title">Meine Bücher</h1>
+  </header>
+
+  <main>
+    <!-- Sammlung -->
+    <section id="view-library" class="view">
+      <div class="searchbar">
+        <input type="search" id="search" placeholder="Titel, Autor, ISBN, Standort …" autocomplete="off" enterkeyhint="search">
+        <select id="sort" aria-label="Sortierung">
+          <option value="added">Neueste zuerst</option>
+          <option value="title">Titel A–Z</option>
+          <option value="author">Autor A–Z</option>
+          <option value="year">Erscheinungsjahr</option>
+          <option value="location">Standort</option>
+        </select>
+      </div>
+      <button type="button" id="backup-banner" class="banner" hidden>Deine Sammlung liegt nur auf diesem Handy. Zeit für ein Backup – hier tippen.</button>
+      <p id="lib-count" class="muted"></p>
+      <ul id="book-list" class="book-list"></ul>
+      <div id="list-sentinel" hidden></div>
+      <div id="lib-empty" class="empty" hidden>
+        <p><strong>Noch keine Bücher</strong></p>
+        <p>Tippe unten auf <em>Erfassen</em> und scanne den Barcode auf der Buchrückseite.</p>
+      </div>
+      <p id="lib-noresult" class="empty" hidden>Keine Treffer.</p>
+    </section>
+
+    <!-- Erfassen -->
+    <section id="view-add" class="view">
+      <div class="camera">
+        <video id="add-video" playsinline muted></video>
+        <div class="frame"></div>
+        <button type="button" class="torch" data-torch="add" aria-label="Taschenlampe" hidden>
+          <svg viewBox="0 0 24 24"><path d="M7 2h10v4l-3 4v12h-4V10L7 6z"/></svg>
+        </button>
+        <p class="cam-msg" id="add-cam-msg" hidden></p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="quick-mode">
+        <span><b>Schnellerfassung</b><br><small>Gescannte Bücher ohne Nachfrage speichern – ideal, um das Regal abzuarbeiten.</small></span>
+      </label>
+      <div id="add-status" class="status-card" hidden></div>
+      <form id="add-manual" class="manual">
+        <input name="code" inputmode="numeric" placeholder="ISBN eintippen" autocomplete="off" enterkeyhint="go">
+        <button type="submit" class="btn">Suchen</button>
+      </form>
+      <button type="button" id="add-noisbn" class="btn ghost wide">Buch ohne ISBN anlegen</button>
+    </section>
+
+    <!-- Einkauf / Auto-Abgleich -->
+    <section id="view-shop" class="view">
+      <div class="camera short">
+        <video id="shop-video" playsinline muted></video>
+        <div class="frame"></div>
+        <button type="button" class="torch" data-torch="shop" aria-label="Taschenlampe" hidden>
+          <svg viewBox="0 0 24 24"><path d="M7 2h10v4l-3 4v12h-4V10L7 6z"/></svg>
+        </button>
+        <p class="cam-msg" id="shop-cam-msg" hidden></p>
+      </div>
+      <div id="shop-result" class="shop-result idle" aria-live="assertive"></div>
+      <form id="shop-manual" class="manual">
+        <input name="code" inputmode="numeric" placeholder="ISBN eintippen" autocomplete="off" enterkeyhint="go">
+        <button type="submit" class="btn">Prüfen</button>
+      </form>
+      <div id="shop-history-wrap" hidden>
+        <h2>Zuletzt geprüft</h2>
+        <ul id="shop-history" class="history"></ul>
+      </div>
+    </section>
+
+    <!-- Mehr -->
+    <section id="view-more" class="view">
+      <div class="stats">
+        <div><b id="stat-books">0</b><span>Bücher</span></div>
+        <div><b id="stat-authors">0</b><span>Autoren</span></div>
+        <div><b id="stat-missing">0</b><span>ohne Daten</span></div>
+      </div>
+
+      <h2>Sicherung</h2>
+      <p class="muted" id="last-backup"></p>
+      <div class="stack">
+        <button type="button" class="btn primary" id="btn-share">Backup teilen (z. B. Google Drive)</button>
+        <button type="button" class="btn" id="btn-export-json">Backup herunterladen (JSON)</button>
+        <button type="button" class="btn" id="btn-export-csv">Liste für Excel exportieren (CSV)</button>
+        <label class="btn file">
+          Backup / CSV importieren
+          <input type="file" id="import-file" accept=".json,.csv,application/json,text/csv">
+        </label>
+      </div>
+
+      <h2>Daten</h2>
+      <div class="stack">
+        <button type="button" class="btn" id="btn-refresh">Fehlende Daten nachladen</button>
+      </div>
+      <p class="muted small" id="storage-info"></p>
+
+      <h2>Signale</h2>
+      <label class="switch"><input type="checkbox" id="opt-sound"><span>Ton beim Scannen</span></label>
+      <label class="switch"><input type="checkbox" id="opt-vibrate"><span>Vibration beim Scannen</span></label>
+      <button type="button" class="btn ghost" id="btn-test">„Hast du schon“-Signal testen</button>
+
+      <h2>Gefahrenzone</h2>
+      <button type="button" class="btn danger" id="btn-clear">Gesamte Sammlung löschen</button>
+
+      <p class="muted small credits">Buchdaten: Google Books, Deutsche Nationalbibliothek, Open Library.</p>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button type="button" data-view="library">
+      <svg viewBox="0 0 24 24"><path d="M4 3h3v18H4zM9 3h3v18H9zM14.2 4.1l2.9-.8 4.6 17.4-2.9.8z"/></svg>
+      <span>Sammlung</span>
+    </button>
+    <button type="button" data-view="add">
+      <svg viewBox="0 0 24 24"><path d="M3 5h2v14H3zM6.5 5h1v14h-1zM9 5h2v14H9zM12.5 5h1v14h-1zM15 5h1.5v14H15zM18 5h1v14h-1zM20.5 5h1v14h-1z"/></svg>
+      <span>Erfassen</span>
+    </button>
+    <button type="button" data-view="shop">
+      <svg viewBox="0 0 24 24"><path d="M6 7V6a6 6 0 0 1 12 0v1h3l-1.5 15h-15L3 7zm2 0h8V6a4 4 0 0 0-8 0z"/></svg>
+      <span>Einkauf</span>
+    </button>
+    <button type="button" data-view="more">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      <span>Mehr</span>
+    </button>
+  </nav>
+
+  <dialog id="editor">
+    <form id="editor-form" method="dialog">
+      <header class="ed-head">
+        <h2 id="ed-heading">Buch</h2>
+        <button type="submit" value="cancel" class="icon-btn" formnovalidate aria-label="Schließen">✕</button>
+      </header>
+      <div class="ed-body">
+        <div class="ed-top">
+          <div id="ed-cover"></div>
+          <div class="ed-top-fields">
+            <label>ISBN <input name="isbn" inputmode="numeric" autocomplete="off"></label>
+            <button type="button" class="btn small" id="ed-reload">Daten neu laden</button>
+            <p class="muted small" id="ed-meta"></p>
+          </div>
+        </div>
+        <p id="ed-hint" class="hint" hidden></p>
+        <label>Titel <input name="title" autocomplete="off"></label>
+        <label>Untertitel <input name="subtitle" autocomplete="off"></label>
+        <label>Autor(en) <small>– mehrere mit Komma trennen</small><input name="authors" autocomplete="off"></label>
+        <div class="row">
+          <label>Verlag <input name="publisher" autocomplete="off"></label>
+          <label class="narrow">Jahr <input name="year" inputmode="numeric" maxlength="4"></label>
+        </div>
+        <div class="row">
+          <label>Standort / Regal <input name="location" list="locations" autocomplete="off" placeholder="z. B. Wohnzimmer, Regal 2"></label>
+          <label class="narrow">Seiten <input name="pages" inputmode="numeric"></label>
+        </div>
+        <datalist id="locations"></datalist>
+        <div class="row">
+          <label>Zustand
+            <select name="condition">
+              <option value=""></option>
+              <option>Neu</option>
+              <option>Sehr gut</option>
+              <option>Gut</option>
+              <option>Akzeptabel</option>
+              <option>Schlecht</option>
+            </select>
+          </label>
+          <label class="narrow">Preis <input name="price" inputmode="decimal" placeholder="€"></label>
+        </div>
+        <label>Tags <small>– mit Komma trennen</small><input name="tags" autocomplete="off" placeholder="z. B. Krimi, gelesen"></label>
+        <label>Notiz <textarea name="notes" rows="2"></textarea></label>
+      </div>
+      <footer class="ed-foot">
+        <button type="submit" value="delete" class="btn danger" id="ed-delete" formnovalidate>Löschen</button>
+        <span class="spacer"></span>
+        <button type="submit" value="cancel" class="btn ghost" formnovalidate>Abbrechen</button>
+        <button type="submit" value="save" class="btn primary">Speichern</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
