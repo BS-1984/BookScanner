@@ -106,6 +106,7 @@
       <h2>Daten</h2>
       <div class="stack">
         <button type="button" class="btn" id="btn-refresh">Fehlende Daten nachladen</button>
+        <button type="button" class="btn" id="btn-covers">Fehlende Cover suchen</button>
       </div>
       <p class="muted small" id="storage-info"></p>
 
@@ -117,7 +118,7 @@
       <h2>Gefahrenzone</h2>
       <button type="button" class="btn danger" id="btn-clear">Gesamte Sammlung löschen</button>
 
-      <p class="muted small credits">Buchdaten: Google Books, Deutsche Nationalbibliothek, Open Library.</p>
+      <p class="muted small credits">Buchdaten: Google Books, Deutsche Nationalbibliothek, Open Library. Cover zusätzlich: Springer Nature.</p>
     </section>
   </main>
 
@@ -152,6 +153,10 @@
           <div class="ed-top-fields">
             <label>ISBN <input name="isbn" inputmode="numeric" autocomplete="off"></label>
             <button type="button" class="btn small" id="ed-reload">Daten neu laden</button>
+            <label class="btn small file">
+              Cover fotografieren
+              <input type="file" id="ed-photo" accept="image/*" capture="environment">
+            </label>
             <p class="muted small" id="ed-meta"></p>
           </div>
         </div>

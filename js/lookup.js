@@ -94,7 +94,53 @@ async function dnb(isbn) {
   };
 }
 
-const FIELDS = ['title', 'subtitle', 'authors', 'publisher', 'year', 'pages', 'language', 'cover', 'description'];
+// ---------- Cover ----------
+
+// Platzhalterbilder, die manche Server statt eines Fehlers ausliefern (Host -> Breite x Höhe).
+const PLACEHOLDERS = {
+  'media.springernature.com': ['306x407'],
+  'books.google.com': ['128x170'], // "image not available"
+};
+
+// Lädt ein Bild und prüft, ob es ein echtes Cover ist.
+export function isRealCover(url) {
+  if (!url) return Promise.resolve(false);
+  if (url.startsWith('data:')) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const img = new Image();
+    const timer = setTimeout(() => { img.src = ''; resolve(false); }, TIMEOUT_MS);
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => {
+      clearTimeout(timer);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const host = new URL(url).hostname;
+      resolve(w > 10 && h > 10 && !(PLACEHOLDERS[host] || []).includes(`${w}x${h}`));
+    };
+    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.src = url;
+  });
+}
+
+// Probiert alle Cover-Quellen parallel und nimmt die erste echte in dieser Reihenfolge.
+// Springer hat für alle eigenen Verlage (Springer, Vieweg, Spektrum, Gabler, Birkhäuser, Apress …)
+// hochauflösende Cover; Google liefert Bilder über books.google.com auch ohne API-Kontingent.
+export async function findCover(isbn, extra = []) {
+  const urls = [...new Set([
+    `https://media.springernature.com/w306/springer-static/cover-hires/book/${isbn}`,
+    ...extra.map(https),
+    `https://books.google.com/books/content?vid=ISBN${isbn}&printsec=frontcover&img=1&zoom=1`,
+    `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`,
+  ].filter(Boolean))];
+  const checks = urls.map(isRealCover);
+  for (let i = 0; i < urls.length; i++) {
+    if (await checks[i]) return urls[i];
+  }
+  return '';
+}
+
+// ---------- Zusammenführen ----------
+
+const FIELDS = ['title', 'subtitle', 'authors', 'publisher', 'year', 'pages', 'language', 'description'];
 
 function isEmpty(v) {
   return v == null || v === '' || (Array.isArray(v) && v.length === 0);
@@ -110,9 +156,6 @@ export async function lookup(isbn) {
     const src = found.find(r => !isEmpty(r[f]));
     merged[f] = src ? src[f] : (f === 'authors' ? [] : f === 'pages' ? null : '');
   }
-  if (!merged.cover) {
-    // Fallback-Cover über die ISBN; lädt nicht, falls keins existiert.
-    merged.cover = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false`;
-  }
+  merged.cover = await findCover(isbn, found.map(r => r.cover));
   return merged;
 }

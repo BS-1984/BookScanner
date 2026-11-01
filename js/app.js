@@ -1,6 +1,6 @@
 import * as db from './db.js';
 import * as ISBN from './isbn.js';
-import { lookup } from './lookup.js';
+import { lookup, findCover, isRealCover } from './lookup.js';
 import { Scanner, isSupported } from './scanner.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -441,7 +441,7 @@ function setupEditor() {
       if (!data) { btn.textContent = 'Keine Daten gefunden'; await new Promise(r => setTimeout(r, 1500)); return; }
       Object.assign(editing.book, {
         isbn, title: data.title, subtitle: data.subtitle, authors: data.authors, publisher: data.publisher,
-        year: data.year, pages: data.pages, language: data.language, cover: data.cover, description: data.description,
+        year: data.year, pages: data.pages, language: data.language, cover: data.cover || editing.book.cover, description: data.description,
         needsLookup: false,
       });
       // persönliche Felder aus dem Formular übernehmen, Metadaten neu füllen
@@ -456,6 +456,30 @@ function setupEditor() {
       btn.textContent = 'Daten neu laden';
     }
   });
+
+  $('#ed-photo').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || !editing) return;
+    try {
+      editing.book.cover = await shrinkImage(file);
+      $('#ed-cover').innerHTML = coverHtml(editing.book, 'cover big');
+    } catch {
+      toast('Foto konnte nicht gelesen werden');
+    }
+  });
+}
+
+// Foto auf Cover-Größe verkleinern, damit Datenbank und Backup klein bleiben (~30 KB pro Bild).
+async function shrinkImage(file, maxH = 450) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxH / bmp.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  return canvas.toDataURL('image/jpeg', 0.8);
 }
 
 // ---------- Kamera-Verwaltung ----------
@@ -879,6 +903,45 @@ async function refreshMissing() {
   }
 }
 
+// Für alle Bücher mit ISBN prüfen, ob das Cover lädt, und sonst eine andere Quelle suchen.
+// Eigene Fotos bleiben unangetastet.
+let coverRun = false;
+async function refreshCovers() {
+  if (coverRun) return;
+  if (!navigator.onLine) { toast('Keine Internetverbindung'); return; }
+  const todo = state.books.filter(b => b.isbn && !b.cover?.startsWith('data:'));
+  if (!todo.length) { toast('Nichts zu prüfen'); return; }
+  coverRun = true;
+  const btn = $('#btn-covers');
+  btn.disabled = true;
+  let done = 0, found = 0, next = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      const b = todo[next++];
+      if (!(await isRealCover(b.cover))) {
+        const url = await findCover(b.isbn).catch(() => '');
+        if (url && url !== b.cover) {
+          b.cover = url;
+          b.updatedAt = new Date().toISOString();
+          await db.put(b);
+          found++;
+        }
+      }
+      btn.textContent = `Prüfe ${++done} / ${todo.length} …`;
+    }
+  };
+  try {
+    await Promise.all([worker(), worker(), worker(), worker()]);
+  } finally {
+    coverRun = false;
+    btn.disabled = false;
+    btn.textContent = 'Fehlende Cover suchen';
+    rebuildIndex();
+    renderLibrary();
+    toast(found ? `${found} Cover gefunden` : 'Keine neuen Cover gefunden');
+  }
+}
+
 async function renderMore() {
   const total = state.books.length;
   const authors = new Set(state.books.flatMap(b => b.authors || [])).size;
@@ -943,6 +1006,7 @@ function setupMore() {
     }
   });
   $('#btn-refresh').addEventListener('click', refreshMissing);
+  $('#btn-covers').addEventListener('click', refreshCovers);
   $('#btn-clear').addEventListener('click', async () => {
     if (!state.books.length) return;
     const answer = prompt(`Alle ${state.books.length} Bücher unwiderruflich löschen?\nZum Bestätigen LÖSCHEN eintippen.`);

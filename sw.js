@@ -1,6 +1,6 @@
 // Service Worker: hält die App-Dateien offline verfügbar.
 // Bei Änderungen an den App-Dateien VERSION erhöhen.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `bookscanner-${VERSION}`;
 const ASSETS = [
   './',
