@@ -256,6 +256,7 @@ function renderLibrary() {
   $('#lib-count').textContent = state.query
     ? `${list.length} von ${total} Büchern`
     : `${total} ${total === 1 ? 'Buch' : 'Bücher'}`;
+  if (state.view === 'library') $('#title').textContent = `${TITLES.library} (${total})`;
   $('#book-list').innerHTML = list.slice(0, state.limit).map(bookCardHtml).join('');
   $('#list-sentinel').hidden = list.length <= state.limit;
   $('#lib-empty').hidden = total > 0;
